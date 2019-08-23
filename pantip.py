@@ -79,7 +79,7 @@ def scrape_pantip(start_id, end_id, file_path='/Users/Nozomi/files/pantip.json')
             dic_all[article_id] = dic
 
     with open(file_path, 'w', encoding='utf-8') as f:  # save as json
-        json.dump(dic_all, f, indent=4)
+        json.dump(dic_all, f, indent=4, ensure_ascii=False)
 
 
 def open_json(file_path='/Users/Nozomi/files/pantip.json'):
