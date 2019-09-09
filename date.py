@@ -1,15 +1,15 @@
 # every 10 minute in one hour
 time = []
-for i in range(0,24):
+for i in range(0, 24):
     for j in range(0,6):
-        time.append('{}:{}0:00'.format(i, j))
+        time.append('{}:{}2:00'.format(i, j))
 time.append('0:00:00')
 
 # every 30 minute in one hour
 time30 = []
-for i in range(0,24):
+for i in range(0, 24):
     for j in range(0,2):
-        time30.append('{}:{}3:00'.format(i, 3*j))
+        time30.append('{}:{}0:00'.format(i, 3*j))
 time30.append('0:03:00')
 
 

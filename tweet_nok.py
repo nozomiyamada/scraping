@@ -8,8 +8,7 @@ import csv
 from os import makedirs
 
 
-def nok(month, append=True, scroll=10
-        , sleep_time=1):  # month = date.month2013_10
+def nok(month, append=True, scroll=15, sleep_time=1):  # month = date.month2013_10
     """
     example:
 
@@ -44,6 +43,7 @@ def nok(month, append=True, scroll=10
         # loop for every hour in one day
         tweet_one_day = 0  # initialize
         for j in range(48):  # date.time30 = list of 24h
+            
 
             if j == 47:  # override "since:2013-1-1_23:35:00_ICT until:2013-1-2_0:35:00_ICT"
                 until = month[i+1]

@@ -8,7 +8,7 @@ import csv
 from os import makedirs
 
 
-def scrape(month, append=True, scroll=20, sleep_time=0.5):  # month = date.month2013_1
+def scrape(month, append=True, scroll=20, sleep_time=1):  # month = date.month2013_1
     """
     example:
         
@@ -16,7 +16,7 @@ def scrape(month, append=True, scroll=20, sleep_time=0.5):  # month = date.month
     month[0].rsplit('-', 1) = ['2013-10', '1']
     path = './tweet/2013-10'
     """
-    driver = webdriver.Firefox()
+    driver = webdriver.Chrome()
     sleep(1)
     path = '/Users/Nozomi/files/tweet/tweet' + month[0].rsplit('-', 1)[0]
     #makedirs(path)
