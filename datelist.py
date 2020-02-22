@@ -10,17 +10,7 @@ min30 = [f'{i}:{3*j}0:00' for i in range(24) for j in range(2)] + ['0:00:00']
 # every hour
 min60 = [f'{i}:00:00' for i in range(24)] + ['0:00:00']
 
-year2010 = ['2010-{}-1'.format(i) for i in range(1, 13)] + ['2011-1-1']
-year2011 = ['2011-{}-1'.format(i) for i in range(1, 13)] + ['2012-1-1']
-year2012 = ['2012-{}-1'.format(i) for i in range(1, 13)] + ['2013-1-1']
-year2013 = ['2013-{}-1'.format(i) for i in range(1, 13)] + ['2014-1-1']
-year2014 = ['2014-{}-1'.format(i) for i in range(1, 13)] + ['2015-1-1']
-year2015 = ['2015-{}-1'.format(i) for i in range(1, 13)] + ['2016-1-1']
-year2016 = ['2016-{}-1'.format(i) for i in range(1, 13)] + ['2017-1-1']
-year2017 = ['2017-{}-1'.format(i) for i in range(1, 13)] + ['2018-1-1']
-year2018 = ['2018-{}-1'.format(i) for i in range(1, 13)] + ['2019-1-1']
-year2019 = ['2019-{}-1'.format(i) for i in range(1, 13)] + ['2020-1-1']
-year2020 = ['2020-{}-1'.format(i) for i in range(1, 13)] + ['2021-1-1']
+year_month_1 = {year:[f'{year}-{month}-1' for month in range(1, 13)] + ['2011-1-1'] for year in range(2005, 2021)}
 
 month2011_1 = ['2011-1-{}'.format(i) for i in range(1, 32)] + ['2011-2-1']
 month2011_2 = ['2011-2-{}'.format(i) for i in range(1, 29)] + ['2011-3-1']

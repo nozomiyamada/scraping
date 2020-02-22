@@ -6,7 +6,7 @@ import pandas as pd
 import tkinter as tk
 import tkinter.ttk as ttk
 from tkinter import filedialog
-import re, csv, os, sys, glob, tqdm, requests
+import re, csv, os, sys, glob, tqdm, requests, datetime
 from datelist import *
 
 ### GUI ###
@@ -17,7 +17,7 @@ def main():
     root.title("tweet scraper")
 
     # Select Language
-    label1 = tk.Label(root, text='language'); label1.grid(row=0, sticky=tk.W)
+    label_lang = tk.Label(root, text='language'); label_lang.grid(row=0, column=0, columnspan=4, sticky=tk.W)
     lang_value = tk.IntVar(); lang_value.set(0)
     lang1 = tk.Radiobutton(root, text='none', variable=lang_value, value=0)
     lang1.grid(row=1, column=0)
@@ -29,41 +29,58 @@ def main():
     lang3.grid(row=1, column=3)
     
     # query
-    label2 = tk.Label(root, text='query'); label2.grid(row=2, sticky=tk.W)
+    label_q = tk.Label(root, text='query'); label_q.grid(row=2, column=0, columnspan=4, sticky=tk.W)
     query = tk.StringVar()
-    form1 = tk.Entry(root, justify='center', textvariable=query)
-    form1.grid(row=3, column=0, columnspan=4, sticky=tk.W)
+    form_q = tk.Entry(root, justify='center', textvariable=query)
+    form_q.grid(row=3, column=0, columnspan=4, sticky=tk.W)
 
-    # year from
-    label3 = tk.Label(root, text='from'); label3.grid(row=4, sticky=tk.W)
-    year_from = tk.Entry(root, text='2020'); year_from.grid(row=5, column=0, columnspan=4, sticky=tk.W)
+    # year from & to
+    year_today = datetime.datetime.today().year
+    month_today = datetime.datetime.today().month
+    
+    label_from = tk.Label(root, text='from'); label_from.grid(row=4, column=0, columnspan=4, sticky=tk.W)
+    year_from = ttk.Combobox(root)
+    year_from['values'] = [f'{year_today}-{m}' for m in range(month_today, 0, -1)] + [f'{y}-{m}' for y in range(year_today-1, 2005, -1) for m in range(12, 0, -1)]
+    year_from.grid(row=5, column=0, columnspan=4, sticky=tk.W)
+    
+    label_to = tk.Label(root, text='to'); label_to.grid(row=6, column=0, columnspan=4, sticky=tk.W)
+    year_to = ttk.Combobox(root)
+    year_to['values'] = [f'{year_today}-{m}' for m in range(month_today, 0, -1)] + [f'{y}-{m}' for y in range(year_today-1, 2005, -1) for m in range(12, 0, -1)]
+    year_to.grid(row=7, column=0, columnspan=4, sticky=tk.W)
 
     # every
-    label4 = tk.Label(root, text='every n minutes'); label4.grid(row=6, sticky=tk.W)
+    label_every = tk.Label(root, text='every n minutes'); label_every.grid(row=8, column=0, columnspan=4, sticky=tk.W)
     every_value = tk.IntVar(); every_value.set(0)
     every1 = tk.Radiobutton(root, text='none', variable=every_value, value=0)
-    every1.grid(row=7, column=0)
+    every1.grid(row=9, column=0)
     every2 = tk.Radiobutton(root, text='60 min', variable=every_value, value=1)
-    every2.grid(row=7, column=1)
+    every2.grid(row=9, column=1)
     every3 = tk.Radiobutton(root, text='30 min', variable=every_value, value=2)
-    every3.grid(row=7, column=2)
+    every3.grid(row=9, column=2)
     every3 = tk.Radiobutton(root, text='10 min', variable=every_value, value=3)
-    every3.grid(row=7, column=3)
-
-    # save to (blank for current directory)
-    label2 = tk.Label(root, text='save as'); label2.grid(row=8, sticky=tk.W)
-    filepath = tk.StringVar()
-    form2 = tk.Entry(root, textvariable=filepath)
-    form2.grid(row=9, column=0, columnspan=4, sticky=tk.W+tk.E)
-    root.mainloop()
+    every3.grid(row=9, column=3)
 
     # output file type
-    label4 = tk.Label(root, text='file type'); label4.grid(row=10, sticky=tk.W)
+    label_filetype = tk.Label(root, text='save file type'); label_filetype.grid(row=10, column=0, columnspan=4, sticky=tk.W)
     filetype_value = tk.StringVar(); filetype_value.set('.csv')
-    filetype1 = tk.Radiobutton(root, text='CSV', variable=filetype_value, value='.csv')
-    filetype1.grid(row=11, column=0)
-    filetype2 = tk.Radiobutton(root, text='JSON', variable=filetype_value, value='.json')
-    filetype2.grid(row=11, column=1)
+    def btn_click():
+        form_save.delete(0, tk.END)
+        form_save.insert(0, 'a' + filetype_value.get())
+    filetype1 = tk.Radiobutton(root, text='CSV', variable=filetype_value, value='.csv', command=btn_click)
+    filetype1.grid(row=11, column=0, columnspan=2)
+    filetype2 = tk.Radiobutton(root, text='JSON', variable=filetype_value, value='.json', command=btn_click)
+    filetype2.grid(row=11, column=2, columnspan=2)
+    
+    # file name
+    label_save = tk.Label(root, text='file path'); label_save.grid(row=12, column=0, columnspan=4, sticky=tk.W)
+    filepath = tk.StringVar()
+    form_save = tk.Entry(root, textvariable=filepath)
+    form_save.insert(0, 'a' + filetype_value.get())
+    form_save.grid(row=13, column=0, columnspan=4, sticky=tk.W+tk.E)
+
+    button = tk.Button(root, text='START SCRAPING'); button.grid(row=14, column=1, columnspan=2)
+
+    root.mainloop()
 
 
 def __time_convert(tweet_time:str):
