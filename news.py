@@ -230,7 +230,7 @@ def count_label(open_tsv):
     file.close()
 
 
-### 4. function for train (need instance) ###
+### OLD CODE ###
 class ML:
     """
     method

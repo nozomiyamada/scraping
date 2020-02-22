@@ -8,8 +8,9 @@ from datelist import *
 
 def __time_convert(tweet_time:str):
     """
-    7:09 PM - 24 Jan 2020 > 2020-01-24 19:09
-    1:04 AM - 25 Jan 2020 > 2020-01-25 01:04
+    convert time format in tweeter to datetime format
+    7:09 PM - 24 Jan 2020 > 2020-01-24T19:09
+    1:04 AM - 25 Jan 2020 > 2020-01-25T01:04
     """
     time, ampm, _, day, month, year = tweet_time.split(' ')
     month_dic = {'Jan':'01','Feb':'02','Mar':'03','Apr':'04','May':'05','Jun':'06','Jul':'07','Aug':'08','Sep':'09','Oct':'10','Nov':'11','Dec':'12'}
@@ -22,18 +23,25 @@ def __time_convert(tweet_time:str):
 
 def scrape_from_html(html:str):
     """
-    scrape all tweets from html (one page)
+    scrape all tweets from html of one page
     """
     soup = BeautifulSoup(html, 'html.parser')
+
+    # get the list of tweet contents, <li class='js-stream-item stream-item stream-item'>
     contents = soup.find_all('li', class_='js-stream-item stream-item stream-item')
+    
+    # 
     tweet_list = []
 
+    # iterate content in list
     for content in contents:
-        date = content.small.a.get('title')
+
+        # date : 7:09 PM - 24 Jan 2020
+        date = content.small.a.get('title') 
         if date == None:
             date = content.small.a.get('data-original-title')
-        name = content.div.get('data-name')
-        username = content.div.get('data-screen-name')
+        name = content.div.get('data-name') # unique username
+        username = content.div.get('data-screen-name') 
         userid = content.div.get('data-user-id')
         tweetid = content.get('data-item-id')
         tweet = content.find('div', class_='js-tweet-text-container').text.strip()
@@ -144,10 +152,8 @@ class ScrapeTweet:
                 # check banned tweet
                 #id_html_checked = [a for a in id_html if ('because it violates' not in a.text and 'has been withheld' not in a.text and 'This Tweet is unavailable' not in a.text)]
                 for k in range(len(times)):
-                    line = [times[k], tweetids[k], ids[k], tweets[k]]
-                    if tweetids[k] not in tweet_id_exist:
-                        writer.writerow(line)
-
+                    line = [times[k], ids[k], tweets[k]]
+                    writer.writerow(line)
             write_file.close()
         driver.close()
 
@@ -286,4 +292,4 @@ if os.name == 'nt': # for windows
 else: # for mac
     nok = ScrapeTweet('/Users/Nozomi/gdrive/scraping/tweet/tweet_nok/', query='นก', times_per_hour=6, scroll_time=30).scrape_tweet
     waitong = ScrapeTweet('/Users/Nozomi/gdrive/scraping/tweet/waitong/', query='วัยทอง', times_per_hour=2, scroll_time=5).scrape_from_now
-    random_tweet = ScrapeTweet('/Users/Nozomi/gdrive/scraping/tweet/random/', times_per_hour=6, scroll_time=30).scrape_tweet
+    random_tweet = ScrapeTweet('/Users/Nozomi/gdrive/scraping/tweet/random/', query='ทัศนคติ' ,times_per_hour=6, scroll_time=30).scrape_tweet
