@@ -7,7 +7,6 @@ import tkinter as tk
 import tkinter.ttk as ttk
 from tkinter import filedialog
 import re, csv, os, sys, glob, tqdm, requests, datetime
-from datelist import *
 
 ### GUI ###
 
@@ -66,9 +65,9 @@ def main():
     def btn_click():
         form_save.delete(0, tk.END)
         form_save.insert(0, 'a' + filetype_value.get())
-    filetype1 = tk.Radiobutton(root, text='CSV', variable=filetype_value, value='.csv', command=btn_click)
+    filetype1 = tk.Radiobutton(root, text='JSON', variable=filetype_value, value='.csv', command=btn_click)
     filetype1.grid(row=11, column=0, columnspan=2)
-    filetype2 = tk.Radiobutton(root, text='JSON', variable=filetype_value, value='.json', command=btn_click)
+    filetype2 = tk.Radiobutton(root, text='CSV', variable=filetype_value, value='.json', command=btn_click)
     filetype2.grid(row=11, column=2, columnspan=2)
     
     # file name
@@ -82,21 +81,16 @@ def main():
 
     root.mainloop()
 
-
-def __time_convert(tweet_time:str):
+def convert_int(num_str):
     """
-    convert time format in tweeter to datetime format
-    7:09 PM - 24 Jan 2020 > 2020-01-24T19:09
-    1:04 AM - 25 Jan 2020 > 2020-01-25T01:04
+    convert string to int in reply, retweet, like
+    '56 ' > 56
+    '' > 0
     """
-    time, ampm, _, day, month, year = tweet_time.split(' ')
-    month_dic = {'Jan':'01','Feb':'02','Mar':'03','Apr':'04','May':'05','Jun':'06','Jul':'07','Aug':'08','Sep':'09','Oct':'10','Nov':'11','Dec':'12'}
-    hour, minute = time.split(':')
-    if ampm == 'PM':
-        time = f'{int(hour)+12}:{minute}'
-    elif len(hour) == 1:
-        time = f'0{hour}:{minute}'
-    return f'{year}-{month_dic[month]}-{day} {time}'
+    if num_str == '':
+        return 0
+    else:
+        return int(num_str.strip())
 
 def scrape_from_html(html:str):
     """
@@ -105,45 +99,48 @@ def scrape_from_html(html:str):
     soup = BeautifulSoup(html, 'html.parser')
 
     # get the list of tweet contents, <li class='js-stream-item stream-item stream-item'>
-    contents = soup.find_all('li', class_='js-stream-item stream-item stream-item')
+    contents = soup.find_all('article')
     
     # 
     tweet_list = []
 
     # iterate content in list
     for content in contents:
-
-        # date : 7:09 PM - 24 Jan 2020
-        date = content.small.a.get('title') 
-        if date == None:
-            date = content.small.a.get('data-original-title')
-        name = content.div.get('data-name') # unique username
-        username = content.div.get('data-screen-name') 
-        userid = content.div.get('data-user-id')
-        tweetid = content.get('data-item-id')
-        tweet = content.find('div', class_='js-tweet-text-container').text.strip()
-        lang = content.find('div', class_='js-tweet-text-container').p.get('lang')
-        reply = content.find_all('span', class_='ProfileTweet-actionCount')[0].get('data-tweet-stat-count')
-        retweet = content.find_all('span', class_='ProfileTweet-actionCount')[1].get('data-tweet-stat-count')
-        like = content.find_all('span', class_='ProfileTweet-actionCount')[2].get('data-tweet-stat-count')
-        # hashtag
-        tags = content.find('div', class_='js-tweet-text-container').find_all('b')
-        if tags == []:
-            hashtag = None
-        else:
-            hashtag = ';'.join([tag.text for tag in tags])
+        date = content.time.get('datetime')[:-5]
+        displayname = content.find_all("a")[1].span.text
+        username = content.find_all("a")[1].get('href')[1:]
+        tweetid = content.find_all('a')[2].get('href')
+        
+        # tweet is in 1-2-2-2th div 
+        div_tweet = content.div.find_all('div',recursive=False)[1].find_all('div',recursive=False)[1].find_all('div',recursive=False)[1]
+        tweet = ''
+        hashtags = []
+        for span in div_tweet.find_all('span'):
+            text = span.text
+            if text.startswith('#'):
+                hashtags.append(text[1:])
+            elif text != '': 
+                tweet += text
+            else:
+                tweet += span.img.get('alt')
+        lang = div_tweet.get('lang')
+        
+        # reply is in 1-2-2-3th div : role='group'
+        div_reply = content.find('div', role='group')
+        reply = div_reply.find_all('div',recursive=False)[0].div.get('aria-label').split('Repl')[0]
+        retweet = div_reply.find_all('div',recursive=False)[1].div.get('aria-label').split('Retweet')[0]
+        like = div_reply.find_all('div',recursive=False)[2].div.get('aria-label').split('Like')[0]
 
         dic = {
-            'date':__time_convert(date),
-            'name':name,
+            'date':date,
+            'displayname':displayname,
             'username':username,
-            'userid':userid,
-            'tweet':tweet,
-            'hashtag':hashtag,
+            'tweet':tweet.strip(),
+            'hashtag':hashtags,
             'language':lang,
-            'reply':reply,
-            'retweet':retweet,
-            'like':like,
+            'reply':convert_int(reply),
+            'retweet':convert_int(retweet),
+            'like':convert_int(like),
             'url':f'https://twitter.com/tweet/status/{tweetid}',
         }
 
@@ -360,6 +357,7 @@ class ScrapeTweet:
         write_file.close()
         driver.close()
 
-
+'''
 if __name__ == "__main__":
     main()
+'''
