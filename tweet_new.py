@@ -6,7 +6,7 @@ import pandas as pd
 import tkinter as tk
 import tkinter.ttk as ttk
 from tkinter import filedialog
-import re, csv, os, sys, glob, tqdm, requests, datetime
+import re, json, os, sys, glob, requests, datetime, calendar
 
 ### GUI ###
 
@@ -17,14 +17,14 @@ def main():
 
     # Select Language
     label_lang = tk.Label(root, text='language'); label_lang.grid(row=0, column=0, columnspan=4, sticky=tk.W)
-    lang_value = tk.IntVar(); lang_value.set(0)
-    lang1 = tk.Radiobutton(root, text='none', variable=lang_value, value=0)
+    lang_value = tk.StringVar(); lang_value.set('th')
+    lang1 = tk.Radiobutton(root, text='th', variable=lang_value, value='th')
     lang1.grid(row=1, column=0)
-    lang2 = tk.Radiobutton(root, text='th', variable=lang_value, value=1)
+    lang2 = tk.Radiobutton(root, text='en', variable=lang_value, value='en')
     lang2.grid(row=1, column=1)
-    lang3 = tk.Radiobutton(root, text='en', variable=lang_value, value=2)
+    lang3 = tk.Radiobutton(root, text='jp', variable=lang_value, value='jp')
     lang3.grid(row=1, column=2)
-    lang3 = tk.Radiobutton(root, text='jp', variable=lang_value, value=3)
+    lang3 = tk.Radiobutton(root, text='none', variable=lang_value, value='none')
     lang3.grid(row=1, column=3)
     
     # query
@@ -61,23 +61,32 @@ def main():
 
     # output file type
     label_filetype = tk.Label(root, text='save file type'); label_filetype.grid(row=10, column=0, columnspan=4, sticky=tk.W)
-    filetype_value = tk.StringVar(); filetype_value.set('.csv')
-    def btn_click():
+    filetype_value = tk.BooleanVar(); filetype_value.set(True)
+    def btn_click_json():
         form_save.delete(0, tk.END)
-        form_save.insert(0, 'a' + filetype_value.get())
-    filetype1 = tk.Radiobutton(root, text='JSON', variable=filetype_value, value='.csv', command=btn_click)
+        form_save.insert(0, 'a.json')
+    def btn_click_csv():
+        form_save.delete(0, tk.END)
+        form_save.insert(0, 'a.csv')
+    filetype1 = tk.Radiobutton(root, text='JSON', variable=filetype_value, value=True, command=btn_click_json)
     filetype1.grid(row=11, column=0, columnspan=2)
-    filetype2 = tk.Radiobutton(root, text='CSV', variable=filetype_value, value='.json', command=btn_click)
+    filetype2 = tk.Radiobutton(root, text='CSV', variable=filetype_value, value=False, command=btn_click_csv)
     filetype2.grid(row=11, column=2, columnspan=2)
     
     # file name
     label_save = tk.Label(root, text='file path'); label_save.grid(row=12, column=0, columnspan=4, sticky=tk.W)
     filepath = tk.StringVar()
     form_save = tk.Entry(root, textvariable=filepath)
-    form_save.insert(0, 'a' + filetype_value.get())
+    form_save.insert(0, 'a.json')
     form_save.grid(row=13, column=0, columnspan=4, sticky=tk.W+tk.E)
 
-    button = tk.Button(root, text='START SCRAPING'); button.grid(row=14, column=1, columnspan=2)
+    def start():
+        inst = ScrapeTweet(filepath=form_save.get(),query=form_q.get(),times_per_hour=every_value.get(),
+        scroll_time=30, lang=lang_value.get(), month_from=year_from.get(), month_to=year_to.get(), is_json=filetype_value.get())
+        inst.scrape_tweet_noloop(start_date=1)
+
+    button = tk.Button(root, text='START SCRAPING', command=start)
+    button.grid(row=14, column=1, columnspan=2)
 
     root.mainloop()
 
@@ -100,8 +109,6 @@ def scrape_from_html(html:str):
 
     # get the list of tweet contents, <li class='js-stream-item stream-item stream-item'>
     contents = soup.find_all('article')
-    
-    # 
     tweet_list = []
 
     # iterate content in list
@@ -121,8 +128,8 @@ def scrape_from_html(html:str):
                 hashtags.append(text[1:])
             elif text != '': 
                 tweet += text
-            else:
-                tweet += span.img.get('alt')
+            #else:
+                #tweet += span.img.get('alt')
         lang = div_tweet.get('lang')
         
         # reply is in 1-2-2-3th div : role='group'
@@ -143,92 +150,55 @@ def scrape_from_html(html:str):
             'like':convert_int(like),
             'url':f'https://twitter.com/tweet/status/{tweetid}',
         }
-
         tweet_list.append(dic)
     
-    return sorted(tweet_list, key=lambda x:x['url'])
+    return sorted(tweet_list, key=lambda x:x['url'], reverse=True)
 
 class ScrapeTweet:
-    def __init__(self, path, query=None, times_per_hour=6, scroll_time=30):
-        """
-        request url - use : (%3A) and space (%20)
-        https://twitter.com/search?q=query%20parameter1%3Avalue%20parameter2%3Avalue
-        """
-        self.path = path  # '/Users/Nozomi/files/tweet/'
+    def __init__(self, filepath, query=None, times_per_hour=6, 
+    scroll_time=30, lang=None, month_from=None, month_to=None, is_json=True):
+        self.filepath = filepath  # '/Users/Nozomi/files/tweet/'
         self.times_per_hour = times_per_hour
         self.scroll_time = scroll_time
-        if query == None:
-            self.url = 'https://twitter.com/search?q=lang%3Ath'
+        self.month_from = month_from
+        self.month_to = month_to
+        self.is_json = True
+        if query != None:
+            self.url = f'https://twitter.com/search?q={query}%20'
         else:
-            self.url = f'https://twitter.com/search?q={query}'
+            self.url = f'https://twitter.com/search?q='
+        if lang != None:
+            self.url += f'lang%3A{lang}%20'
 
-    def scrape_tweet(self, month, start_date=1): # times per hour = 6,3,2,1
-        """
-        month: month2013_10 = ['2013-10-1', '2013-10-2',...]
-        """
-        files = sorted(glob.glob(self.path + month[0].rsplit('-',1)[0] + '/*.tsv'))
-        print(sorted([x.rsplit('/')[-1] for x in files]))
+    def scrape_tweet_noloop(self, start_date=1):
         #options = Options()
         #options.add_argument('-headless')
         #driver = webdriver.Firefox(firefox_options=options)
         driver = webdriver.Firefox()
+        self.url + f'%20since%3A{self.month_from}%20until%3A{self.month_to}'
+        driver.get(self.url)
 
-        for day_idx in tqdm.tqdm(range(start_date-1, len(month)-1), desc='day'):
-            day_since = month[day_idx] 
-            day_until = month[day_idx]  # if the time is 23:50, override 'day_to' below
-
-            filename = f'{self.path}{month[0].rsplit("-",1)[0]}/{day_since}.tsv'
-            if filename in files: # if exists, append
-                # open file once for making tweet ID list
-                with open(filename, 'r', encoding='utf-8') as f:
-                    tweet_id_exist = [line[1] for line in csv.reader(f, delimiter='\t')]
-                write_file = open(filename, 'a', encoding='utf-8')
+        # scroll k times
+        scrollheight_list = []
+        while True:
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")  # scroll to the bottom
+            scrollheight_list.append(driver.execute_script("return document.body.scrollHeight;"))
+            sleep(1)
+            if len(scrollheight_list) >= 4:
+                if len(set(scrollheight_list[-4:])) == 1:
+                    break
             else:
-                write_file = open(filename, 'w', encoding='utf-8')
-                tweet_id_exist = []
-            writer = csv.writer(write_file, delimiter='\t', lineterminator='\n')
+                scrollheight_list = scrollheight_list[-4:]
 
-            # loop for every x minute in one day
-            repeat_times = 24 * self.times_per_hour
-            time_list = {1:min60, 2:min30, 3:min20, 6:min10}[self.times_per_hour]
-            for j in tqdm.tqdm(range(repeat_times), desc='time'):
-                if j == repeat_times - 1:  # override "since:2013-1-1_23:50:00_ICT until:2013-1-2_0:00:00_ICT"
-                    day_until = month[day_idx+1]
+        # scraping
+        html = driver.page_source.encode('utf-8')
+        result = scrape_from_html(html)
+        if self.is_json:
+            with open(self.filepath, 'w', encoding='utf-8') as f:
+                json.dump(result, f, indent=4, ensure_ascii=False)
+        else:
+            pd.DataFrame(result).to_csv(filepath, encoding='utf-8', index=None)
 
-                time_since, time_until = time_list[j], time_list[j+1]
-                url = self.url + f'%20since%3A{day_since}_{time_since}_ICT%20until%3A{day_until}_{time_until}_ICT'
-                driver.get(url)
-
-                # scroll k times
-                scrollheight = []
-                for t in range(self.scroll_time):
-                    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")  # scroll to the bottom
-                    scrollheight.append(driver.execute_script("return document.body.scrollHeight;"))
-                    sleep(1)
-                    if len(scrollheight) >= 3 and len(set(scrollheight[-3:])) == 1:
-                        break
-
-                # scraping
-                html = driver.page_source.encode('utf-8')
-                soup = BeautifulSoup(html, "html.parser")  # get html
-                contents = soup.find_all('li',class_="js-stream-item stream-item stream-item")
-                times = [x.small.a.get('title') for x in contents]
-                ids = [x.find('div', class_="stream-item-header").a.get('href')[1:] for x in contents]
-                tweets = [x.find('div', class_="js-tweet-text-container").text.strip() for x in contents]
-                """ hash tags
-                if tweet_html[k].find('a') is not None:
-                    hashtags = tweet_html[k].find_all('a')
-                    hashtag = [unquote(tag.get('href').split('/hashtag/')[-1].strip('?src=hash')) for tag in hashtags]
-                else:
-                    hashtag = 'None'
-                """
-
-                # check banned tweet
-                #id_html_checked = [a for a in id_html if ('because it violates' not in a.text and 'has been withheld' not in a.text and 'This Tweet is unavailable' not in a.text)]
-                for k in range(len(times)):
-                    line = [times[k], ids[k], tweets[k]]
-                    writer.writerow(line)
-            write_file.close()
         driver.close()
 
     def scrape_tweet_day(self, month, start_date=1):
@@ -357,7 +327,6 @@ class ScrapeTweet:
         write_file.close()
         driver.close()
 
-'''
+
 if __name__ == "__main__":
     main()
-'''
