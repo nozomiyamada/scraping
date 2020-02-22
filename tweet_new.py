@@ -8,7 +8,7 @@ import tkinter.ttk as ttk
 from tkinter import filedialog
 import re, json, os, sys, glob, requests, datetime, calendar
 
-### GUI ###
+##### GUI #####
 
 def main():
     root = tk.Tk()
@@ -33,18 +33,26 @@ def main():
     form_q = tk.Entry(root, justify='center', textvariable=query)
     form_q.grid(row=3, column=0, columnspan=4, sticky=tk.W)
 
-    # year from & to
+    # function to convert into 2 digit string e.g. 1 -> 01
+    def to2d(month:int):  
+        month = str(month)
+        return month if len(month) == 2 else '0'+ month
+
+    # year from
     year_today = datetime.datetime.today().year
     month_today = datetime.datetime.today().month
+    day_today = datetime.datetime.today().day
     
     label_from = tk.Label(root, text='from'); label_from.grid(row=4, column=0, columnspan=4, sticky=tk.W)
     year_from = ttk.Combobox(root)
-    year_from['values'] = [f'{year_today}-{m}' for m in range(month_today, 0, -1)] + [f'{y}-{m}' for y in range(year_today-1, 2005, -1) for m in range(12, 0, -1)]
+    year_from['values'] = [f'{year_today}-{to2d(m)}-01' for m in range(month_today, 0, -1)] + [f'{y}-{to2d(m)}-01' for y in range(year_today-1, 2005, -1) for m in range(12, 0, -1)]
     year_from.grid(row=5, column=0, columnspan=4, sticky=tk.W)
     
+    # year to
     label_to = tk.Label(root, text='to'); label_to.grid(row=6, column=0, columnspan=4, sticky=tk.W)
     year_to = ttk.Combobox(root)
-    year_to['values'] = [f'{year_today}-{m}' for m in range(month_today, 0, -1)] + [f'{y}-{m}' for y in range(year_today-1, 2005, -1) for m in range(12, 0, -1)]
+    year_to['values'] = [f'{year_today}-{to2d(month_today)}-{day_today}'] + [f'{year_today}-{to2d(m)}-{calendar.monthrange(year_today, m)[-1]}' for m in range(month_today-1, 0, -1)] \
+                        + [f'{y}-{to2d(m)}-{calendar.monthrange(y, m)[-1]}' for y in range(year_today-1, 2005, -1) for m in range(12, 0, -1)]
     year_to.grid(row=7, column=0, columnspan=4, sticky=tk.W)
 
     # every
@@ -80,15 +88,28 @@ def main():
     form_save.insert(0, 'a.json')
     form_save.grid(row=13, column=0, columnspan=4, sticky=tk.W+tk.E)
 
+    def to_none(text:str):
+        return None if text == '' else text
+    
     def start():
-        inst = ScrapeTweet(filepath=form_save.get(),query=form_q.get(),times_per_hour=every_value.get(),
-        scroll_time=30, lang=lang_value.get(), month_from=year_from.get(), month_to=year_to.get(), is_json=filetype_value.get())
+        inst = ScrapeTweet(filepath = form_save.get(),
+            query = to_none(form_q.get()),
+            times_per_hour = every_value.get(),
+            scroll_time = 30,
+            lang = lang_value.get(),
+            month_from = to_none(year_from.get()),
+            month_to = to_none(year_to.get()),
+            is_json = filetype_value.get())
         inst.scrape_tweet_noloop(start_date=1)
 
     button = tk.Button(root, text='START SCRAPING', command=start)
     button.grid(row=14, column=1, columnspan=2)
 
+    fff = tk.StringVar()
+    L = tk.Label(root, textvariable=fff); L.grid(row=15)
     root.mainloop()
+
+##### functions for scraping #####
 
 def convert_int(num_str):
     """
@@ -116,23 +137,34 @@ def scrape_from_html(html:str):
         date = content.time.get('datetime')[:-5]
         displayname = content.find_all("a")[1].span.text
         username = content.find_all("a")[1].get('href')[1:]
-        tweetid = content.find_all('a')[2].get('href')
+        tweetid = content.find_all('a')[2].get('href').split('/')[-1]
         
-        # tweet is in 1-2-2-2th div 
+        # tweet is in 1-2-2-2th div
+        # if reply, tweet is in 1-2-2-3th div
+        tweet, hashtags = '', []
         div_tweet = content.div.find_all('div',recursive=False)[1].find_all('div',recursive=False)[1].find_all('div',recursive=False)[1]
-        tweet = ''
-        hashtags = []
-        for span in div_tweet.find_all('span'):
-            text = span.text
-            if text.startswith('#'):
-                hashtags.append(text[1:])
-            elif text != '': 
-                tweet += text
-            #else:
-                #tweet += span.img.get('alt')
+        
+        if div_tweet.text.startswith('Replying to'):
+            reply_to = div_tweet.text.split('Replying to')[-1].strip()
+            div_tweet = content.div.find_all('div',recursive=False)[1].find_all('div',recursive=False)[1].find_all('div',recursive=False)[2]
+        else:
+            reply_to = None
+
+        for child in div_tweet.findChildren(recursive=False):
+            if child.name == 'span':
+                text = child.text
+                if text.startswith('#'):
+                    hashtags.append(text[1:])
+                    tweet += text
+                elif child.img != None: # for emoji
+                    tweet += child.img.get('alt')
+                else:
+                    tweet += text
+            elif child.name == 'a':
+                tweet += child.text
         lang = div_tweet.get('lang')
         
-        # reply is in 1-2-2-3th div : role='group'
+        # reply is in 1-2-2-3or4th div : role='group'
         div_reply = content.find('div', role='group')
         reply = div_reply.find_all('div',recursive=False)[0].div.get('aria-label').split('Repl')[0]
         retweet = div_reply.find_all('div',recursive=False)[1].div.get('aria-label').split('Retweet')[0]
@@ -142,6 +174,7 @@ def scrape_from_html(html:str):
             'date':date,
             'displayname':displayname,
             'username':username,
+            'reply_to':reply_to,
             'tweet':tweet.strip(),
             'hashtag':hashtags,
             'language':lang,
@@ -154,15 +187,17 @@ def scrape_from_html(html:str):
     
     return sorted(tweet_list, key=lambda x:x['url'], reverse=True)
 
+##### class #####
+
 class ScrapeTweet:
     def __init__(self, filepath, query=None, times_per_hour=6, 
     scroll_time=30, lang=None, month_from=None, month_to=None, is_json=True):
         self.filepath = filepath  # '/Users/Nozomi/files/tweet/'
-        self.times_per_hour = times_per_hour
-        self.scroll_time = scroll_time
-        self.month_from = month_from
-        self.month_to = month_to
-        self.is_json = True
+        self.times_per_hour = times_per_hour  # none, 1, 2, 6
+        self.scroll_time = scroll_time  # how many times to scroll in one page 
+        self.month_from = month_from  # request parameter since
+        self.month_to = month_to  # request parameter until
+        self.is_json = True  # True: JSON, False: CSV
         if query != None:
             self.url = f'https://twitter.com/search?q={query}%20'
         else:
@@ -174,8 +209,11 @@ class ScrapeTweet:
         #options = Options()
         #options.add_argument('-headless')
         #driver = webdriver.Firefox(firefox_options=options)
-        driver = webdriver.Firefox()
-        self.url + f'%20since%3A{self.month_from}%20until%3A{self.month_to}'
+        driver = webdriver.Chrome()
+        if self.month_from != None:
+            self.url += f'since%3A{self.month_from}%20'
+        if self.month_to != None:
+            self.url += f'until%3A{self.month_to}%20'
         driver.get(self.url)
 
         # scroll k times
@@ -197,9 +235,9 @@ class ScrapeTweet:
             with open(self.filepath, 'w', encoding='utf-8') as f:
                 json.dump(result, f, indent=4, ensure_ascii=False)
         else:
-            pd.DataFrame(result).to_csv(filepath, encoding='utf-8', index=None)
+            pd.DataFrame(result).to_csv(self.filepath, encoding='utf-8', index=None)
 
-        driver.close()
+        #driver.close()
 
     def scrape_tweet_day(self, month, start_date=1):
         """
@@ -232,7 +270,7 @@ class ScrapeTweet:
 
             # scroll k times
             scrollheight = []
-            for t in range(self.scroll_time):
+            for _ in range(self.scroll_time):
                 driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")  # scroll to the bottom
                 scrollheight.append(driver.execute_script("return document.body.scrollHeight;"))
                 sleep(1)
@@ -325,8 +363,8 @@ class ScrapeTweet:
                 writer.writerow(line)
 
         write_file.close()
-        driver.close()
-
-
+        #driver.close()
+"""
 if __name__ == "__main__":
     main()
+"""
