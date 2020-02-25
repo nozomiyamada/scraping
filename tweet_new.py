@@ -1,5 +1,6 @@
 from time import sleep
 from selenium import webdriver
+from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.firefox.options import Options
 from bs4 import BeautifulSoup
 import pandas as pd
@@ -120,6 +121,13 @@ def convert_int(num_str):
     else:
         return int(num_str.strip())
 
+def duplicated(lst):
+    new_lst = []
+    for elem in lst:
+        if elem not in new_lst:
+            new_lst.append(elem)
+    return new_lst
+
 def scrape_from_html(html:str):
     """
     scrape all tweets from html of one page
@@ -132,11 +140,15 @@ def scrape_from_html(html:str):
 
     # iterate content in list
     for content in contents:
-        date = content.time.get('datetime')[:-5]
+        try:
+            date = content.time.get('datetime')[:-5]
+        except:
+            continue
         displayname = content.find_all("a")[1].span.text
         username = content.find_all("a")[1].get('href')[1:]
         tweetid = content.find_all('a')[2].get('href').split('/')[-1]
         
+        # specify the div of tweet
         # tweet is in 1-2-2-2th div
         # if reply, tweet is in 1-2-2-3th div
         tweet, hashtags = '', []
@@ -148,14 +160,15 @@ def scrape_from_html(html:str):
         else:
             reply_to = None
 
+        # get tweet and hastagas 
         for child in div_tweet.findChildren(recursive=False):
             if child.name == 'span':
                 text = child.text
                 if text.startswith('#'):
                     hashtags.append(text[1:])
                     tweet += text
-                elif child.img != None: # for emoji
-                    tweet += child.img.get('alt')
+                #elif child.img != None:  # for emoji
+                    #tweet += child.img.get('alt')
                 else:
                     tweet += text
             elif child.name == 'a':
@@ -216,26 +229,36 @@ class ScrapeTweet:
 
         # scroll k times
         scrollheight_list = []
+        tweet_list = []
         while True:
-            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")  # scroll to the bottom
+            # get tweets
+            html = driver.page_source.encode('utf-8')
+            new_tweets = scrape_from_html(html)
+            tweet_list += new_tweets
+            tweet_list = duplicated(tweet_list)
+
+            # scroll
+            element = driver.find_elements_by_tag_name('article')[-1]
+            actions = ActionChains(driver)
+            actions.move_to_element(element)
+            actions.perform()
             scrollheight_list.append(driver.execute_script("return document.body.scrollHeight;"))
             sleep(1)
-            if len(scrollheight_list) >= 4:
-                if len(set(scrollheight_list[-4:])) == 1:
+            if len(scrollheight_list) >= 6:
+                if len(set(scrollheight_list[-6:])) == 1:
                     break
             else:
-                scrollheight_list = scrollheight_list[-4:]
+                scrollheight_list = scrollheight_list[-6:]
 
         # scraping
-        html = driver.page_source.encode('utf-8')
-        result = scrape_from_html(html)
+        tweet_list = sorted(tweet_list, key=lambda x:x['date'], reverse=True)
         if self.is_json:
             with open(self.filepath, 'w', encoding='utf-8') as f:
-                json.dump(result, f, indent=4, ensure_ascii=False)
+                json.dump(tweet_list, f, indent=4, ensure_ascii=False)
         else:
-            pd.DataFrame(result).to_csv(self.filepath, encoding='utf-8', index=None)
+            pd.DataFrame(tweet_list).to_csv(self.filepath, encoding='utf-8', index=None)
 
-        driver.close()
+        #driver.close()
 
 if __name__ == "__main__":
     main()
